@@ -44,7 +44,7 @@ export default function TaskBoard({ tasks, onRefresh }) {
         const qTasks = tasks.filter((t) => t.quadrant === q.id);
         
         return (
-          <div key={q.id} className="neo-border bg-[#FFF5F5] flex flex-col h-[300px] border-black">
+          <div key={q.id} className="neo-border bg-[#FFF5F5] flex flex-col h-[230px] border-black">
             {/* Header */}
             <div className={`neo-border-b border-b-4 border-black p-2 font-bold text-center ${q.color}`}>
               {q.title} ({qTasks.length})

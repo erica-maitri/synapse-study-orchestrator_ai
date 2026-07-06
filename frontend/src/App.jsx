@@ -515,7 +515,7 @@ export default function App() {
               {windows.ledger && (
                 <div className="neo-border bg-[#FFF5F5] neo-shadow flex flex-col min-h-[350px]">
                   <WindowHeader title="THE_LEDGER (Eisenhower Task Board)" name="ledger" color="bg-[#FFDE4D] text-black" />
-                  <div className="flex-1 p-2 overflow-y-auto max-h-[480px]">
+                  <div className="flex-1 p-2 overflow-y-auto">
                     <TaskBoard tasks={tasks} onRefresh={refreshData} />
                   </div>
                 </div>

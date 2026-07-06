@@ -1,6 +1,7 @@
 import json
 import os
 import datetime
+import re
 from google.adk.agents import Agent
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
@@ -27,6 +28,51 @@ def run_agent(agent, prompt: str) -> str:
                 if part.text:
                     text_parts.append(part.text)
     return "".join(text_parts).strip()
+
+def parse_markdown_to_dict(text: str) -> dict:
+    data = {}
+    
+    # Try to extract key-value patterns like "- Key: Value" or "Key: Value"
+    patterns = [
+        r"(?:-|\*)\s*[\*\_]*([a-zA-Z\s_]+)[\*\_]*\s*:\s*(.*)",
+        r"([a-zA-Z\s_]+)\s*:\s*(.*)"
+    ]
+    
+    for line in text.splitlines():
+        for pattern in patterns:
+            match = re.match(pattern, line.strip())
+            if match:
+                key = match.group(1).strip().lower().replace(" ", "_")
+                val = match.group(2).strip()
+                # Clean up any trailing/leading markdown formatting
+                val = val.strip("*_`\"'")
+                data[key] = val
+                break
+                
+    # Normalize keys to match scored_data
+    normalized = {}
+    if "title" in data: normalized["title"] = data["title"]
+    if "description" in data: normalized["description"] = data["description"]
+    if "importance" in data:
+        try: normalized["importance"] = int(data["importance"])
+        except ValueError: pass
+    if "urgency" in data:
+        try: normalized["urgency"] = int(data["urgency"])
+        except ValueError: pass
+    if "estimated_duration" in data:
+        val = data["estimated_duration"]
+        digits = "".join(c for c in val if c.isdigit())
+        if digits: normalized["estimated_duration"] = int(digits)
+    if "due_date" in data: normalized["due_date"] = data["due_date"]
+    if "priority_score" in data:
+        try: normalized["priority_score"] = float(data["priority_score"])
+        except ValueError: pass
+    elif "score" in data:
+        try: normalized["priority_score"] = float(data["score"])
+        except ValueError: pass
+    if "quadrant" in data: normalized["quadrant"] = data["quadrant"]
+    
+    return normalized
 
 planner_agent = Agent(
     name="PlannerAgent",
@@ -155,20 +201,36 @@ def run_synapse_pipeline(user_goal: str) -> dict:
                 start_idx = opt_raw.find("{")
                 end_idx = opt_raw.rfind("}")
                 if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
-                    opt_raw = opt_raw[start_idx:end_idx+1]
-                scored_data = json.loads(opt_raw)
+                    opt_raw_json = opt_raw[start_idx:end_idx+1]
+                    scored_data = json.loads(opt_raw_json)
+                else:
+                    raise ValueError("No JSON object block found")
             except Exception as opt_err:
-                print(f"[Optimizer Warning] Failed to parse JSON, using fallback. Error: {opt_err}")
-                scored_data = {
-                    "title": task_data.get("title", "Untitled Task"),
-                    "description": task_data.get("description", ""),
-                    "importance": task_data.get("importance", 3),
-                    "urgency": task_data.get("urgency", 3),
-                    "priority_score": 3.5,
-                    "quadrant": "Q2: Schedule",
-                    "estimated_duration": task_data.get("estimated_duration", 60),
-                    "due_date": task_data.get("due_date", (datetime.date.today() + datetime.timedelta(days=1)).isoformat())
-                }
+                print(f"[Optimizer Warning] JSON parsing failed, trying markdown parser. Error: {opt_err}")
+                try:
+                    parsed_markdown = parse_markdown_to_dict(opt_raw)
+                    scored_data = {
+                        "title": parsed_markdown.get("title") or task_data.get("title", "Untitled Task"),
+                        "description": parsed_markdown.get("description") or task_data.get("description", ""),
+                        "importance": parsed_markdown.get("importance") or task_data.get("importance", 3),
+                        "urgency": parsed_markdown.get("urgency") or task_data.get("urgency", 3),
+                        "priority_score": parsed_markdown.get("priority_score") or 3.5,
+                        "quadrant": parsed_markdown.get("quadrant") or "Q2: Schedule",
+                        "estimated_duration": parsed_markdown.get("estimated_duration") or task_data.get("estimated_duration", 60),
+                        "due_date": parsed_markdown.get("due_date") or task_data.get("due_date", (datetime.date.today() + datetime.timedelta(days=1)).isoformat())
+                    }
+                except Exception as md_err:
+                    print(f"[Optimizer Warning] Markdown parsing also failed. Using fallback. Error: {md_err}")
+                    scored_data = {
+                        "title": task_data.get("title", "Untitled Task"),
+                        "description": task_data.get("description", ""),
+                        "importance": task_data.get("importance", 3),
+                        "urgency": task_data.get("urgency", 3),
+                        "priority_score": 3.5,
+                        "quadrant": "Q2: Schedule",
+                        "estimated_duration": task_data.get("estimated_duration", 60),
+                        "due_date": task_data.get("due_date", (datetime.date.today() + datetime.timedelta(days=1)).isoformat())
+                    }
                 
             log_audit("TaskOptimizer", "score_task_priority", task_data, "success")
             
@@ -216,6 +278,11 @@ def run_synapse_pipeline(user_goal: str) -> dict:
             conn.close()
             
             scored_data["id"] = task_id
+            scored_data["importance"] = imp
+            scored_data["urgency"] = urg
+            scored_data["due_date"] = due
+            scored_data["priority_score"] = scoring["score"]
+            scored_data["quadrant"] = scoring["quadrant"]
             results["tasks_created"].append(scored_data)
             
             # Step 3: Run Exam Study Agent if the task type is 'study'

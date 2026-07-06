@@ -33,27 +33,31 @@ planner_agent = Agent(
     model=planner_model,
     instruction=(
         "You are the Planner Agent (Root Orchestrator) of the Synapse system.\n"
-        "Your task is to take the user's high-level goal (e.g., 'Prepare for my history exam next Monday') "
-        "and decompose it into 2 to 4 discrete subtasks.\n\n"
+        "Your task is to take the user's high-level goal and decompose it into appropriate discrete subtasks.\n\n"
+        "CRITICAL RULES:\n"
+        "1. MULTIPLE TASKS: If the user goal contains multiple distinct tasks, goals, or items (often separated by 'and', commas, or context shifts), you MUST create separate subtask objects for each one.\n"
+        "2. CONSECUTIVE/RECURRING DAYS: If a task mentions doing something for consecutive/continuous days (e.g., 'practice DP for consecutive 5 days' or 'study ML for consecutive 3 days'), you MUST generate a separate, distinct subtask object for EACH of the consecutive days (e.g., 'DP Practice: Day 1', 'DP Practice: Day 2', ..., 'DP Practice: Day 5'). Set the `due_date` of each subsequent day's subtask to the corresponding consecutive date, starting from tomorrow.\n"
+        "3. DEADLINES/DUE DATES: Pay close attention to explicit deadlines in the text (e.g., 'complete till 10 july' or 'by 15 july'). Infer the year based on the current date provided (e.g. if today is 2026-07-06, '10 july' is '2026-07-10'). Set the `due_date` of the task to that date. Do not invent dates or push tasks beyond their explicit deadline date (e.g. if the user says 'complete till 10 july', the due_date MUST be '2026-07-10' or earlier, never later).\n"
+        "4. JSON FORMAT ONLY: Output ONLY a valid JSON array of objects. Do not write any conversational text, explanations, or introductory/concluding text. Only output the JSON array.\n"
+        "5. DESCRIPTION INTEGRITY: Make sure descriptions match the actual subtask context. Do NOT copy the example titles or descriptions into the generated tasks.\n\n"
         "For each subtask, you must define:\n"
-        "- 'title': concise task title\n"
+        "- 'title': concise task title (e.g. 'DP Practice: Day 1')\n"
         "- 'description': detailed study/review steps\n"
         "- 'importance': rating from 1 to 5 (estimate based on goal)\n"
         "- 'urgency': rating from 1 to 5 (estimate based on goal & due date)\n"
         "- 'estimated_duration': time in minutes (e.g., 30, 45, 60, 120)\n"
         "- 'due_date': YYYY-MM-DD format (infer relative to today's date if not specified)\n"
         "- 'type': either 'study' (requires creating study materials/reviews) or 'general' (just task execution)\n\n"
-        "Return the subtasks ONLY as a valid JSON array of objects. Do not include markdown code block formatting in your output, just raw JSON.\n"
         "Example output:\n"
         "[\n"
         "  {\n"
-        "    \"title\": \"Read Chapter 1\",\n"
-        "    \"description\": \"Review Chapter 1 notes on World War I\",\n"
+        "    \"title\": \"Write outline for thesis\",\n"
+        "    \"description\": \"Draft the introduction and key research sections for the thesis outline document.\",\n"
         "    \"importance\": 4,\n"
         "    \"urgency\": 4,\n"
         "    \"estimated_duration\": 60,\n"
         "    \"due_date\": \"2026-07-09\",\n"
-        "    \"type\": \"study\"\n"
+        "    \"type\": \"general\"\n"
         "  }\n"
         "]"
     )
@@ -126,13 +130,9 @@ def run_synapse_pipeline(user_goal: str) -> dict:
     log_audit("PlannerAgent", "DecomposeGoal", {"goal": user_goal}, "success")
     results["logs"].append(f"Planner prepared {len(subtasks)} tasks.")
     
-    # Connect to SQLite for database operations
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    # Schedule timeline base (start scheduling from tomorrow at 10:00 AM)
-    schedule_date = datetime.date.today() + datetime.timedelta(days=1)
-    current_time_slot = datetime.datetime.combine(schedule_date, datetime.time(10, 0))
+    # Keep track of scheduling times per date (format: "YYYY-MM-DD")
+    daily_time_slots = {}
+    default_schedule_date = datetime.date.today() + datetime.timedelta(days=1)
     
     for task_data in subtasks:
         try:
@@ -175,10 +175,28 @@ def run_synapse_pipeline(user_goal: str) -> dict:
             # Calculate score & quadrant deterministically in Python to prevent LLM mismatches
             imp = int(scored_data.get("importance", task_data.get("importance", 3)))
             urg = int(scored_data.get("urgency", task_data.get("urgency", 3)))
-            due = scored_data.get("due_date", task_data.get("due_date", (datetime.date.today() + datetime.timedelta(days=1)).isoformat()))
+            
+            due = scored_data.get("due_date", task_data.get("due_date"))
+            task_date = None
+            if due:
+                try:
+                    task_date = datetime.datetime.strptime(due.strip(), "%Y-%m-%d").date()
+                except ValueError:
+                    pass
+            
+            if not task_date:
+                task_date = default_schedule_date
+                due = default_schedule_date.isoformat()
+                
+            if task_date < datetime.date.today():
+                task_date = default_schedule_date
+                due = default_schedule_date.isoformat()
+                
             scoring = calculate_priority_score(imp, urg, due)
 
             # Insert task into Database
+            conn = get_db_connection()
+            cursor = conn.cursor()
             cursor.execute(
                 """INSERT INTO tasks (title, description, importance, urgency, score, quadrant, estimated_duration, due_date)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
@@ -194,6 +212,9 @@ def run_synapse_pipeline(user_goal: str) -> dict:
                 )
             )
             task_id = cursor.lastrowid
+            conn.commit()
+            conn.close()
+            
             scored_data["id"] = task_id
             results["tasks_created"].append(scored_data)
             
@@ -234,6 +255,8 @@ def run_synapse_pipeline(user_goal: str) -> dict:
                     
                 log_audit("ExamStudyAgent", "generate_flashcards", {"topic": task_data.get('title', 'Untitled Task')}, "success")
                 
+                conn = get_db_connection()
+                cursor = conn.cursor()
                 for fc in flashcards:
                     subject = fc.get("subject", fc.get("tag", task_data.get('title', 'Untitled Task')))
                     cursor.execute(
@@ -244,22 +267,33 @@ def run_synapse_pipeline(user_goal: str) -> dict:
                         "front": fc["front"],
                         "back": fc["back"]
                     })
+                conn.commit()
+                conn.close()
             
             # Step 4: Run Live Scheduler Agent to schedule calendar block
+            date_str = task_date.isoformat()
+            if date_str not in daily_time_slots:
+                daily_time_slots[date_str] = datetime.datetime.combine(task_date, datetime.time(10, 0))
+                
+            current_time_slot = daily_time_slots[date_str]
+            
             duration_mins = int(scored_data.get("estimated_duration", 60))
             end_time_slot = current_time_slot + datetime.timedelta(minutes=duration_mins)
             
             start_str = current_time_slot.isoformat()
             end_str = end_time_slot.isoformat()
             
-            results["logs"].append(f"Scheduling calendar event for: {task_data.get('title', 'Untitled Task')}")
+            results["logs"].append(f"Scheduling calendar event for: {task_data.get('title', 'Untitled Task')} on {date_str}")
             
-            # Schedule calendar event via tool invocation inside scheduler agent or direct insertion
+            conn = get_db_connection()
+            cursor = conn.cursor()
             cursor.execute(
                 "INSERT INTO calendar_events (title, description, start_time, end_time, task_id) VALUES (?, ?, ?, ?, ?)",
                 (scored_data["title"], scored_data["description"], start_str, end_str, task_id)
             )
             event_id = cursor.lastrowid
+            conn.commit()
+            conn.close()
             
             log_audit("LiveSchedulerAgent", "schedule_event", {
                 "title": scored_data["title"],
@@ -275,16 +309,13 @@ def run_synapse_pipeline(user_goal: str) -> dict:
                 "task_id": task_id
             })
             
-            # Advance schedule time slot for next task (add a 15 min break)
-            current_time_slot = end_time_slot + datetime.timedelta(minutes=15)
+            # Advance schedule time slot for next task on this date (add a 15 min break)
+            daily_time_slots[date_str] = end_time_slot + datetime.timedelta(minutes=15)
             
         except Exception as task_err:
             print(f"[Pipeline Error on Task] {task_err}")
             log_audit("PlannerAgent", "ProcessSubtask", task_data, "error", str(task_err))
             results["logs"].append(f"Error processing task '{task_data.get('title')}': {task_err}")
             
-    conn.commit()
-    conn.close()
-    
     results["logs"].append("Pipeline execution completed successfully.")
     return results

@@ -51,7 +51,7 @@ export default function TaskBoard({ tasks, onRefresh }) {
             </div>
             
             {/* Task list */}
-            <div className="p-3 flex-1 space-y-3 overflow-y-auto max-h-[300px]">
+            <div className="p-3 flex-1 space-y-3 overflow-y-auto">
               {qTasks.length === 0 ? (
                 <div className="text-center text-black text-opacity-60 py-6 text-sm italic font-bold">
                   NO TASKS SCHEDULED

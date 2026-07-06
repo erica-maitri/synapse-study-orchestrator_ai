@@ -30,7 +30,41 @@ flowchart TD
 
 ---
 
-## 2. Setup & Installation
+## 2. Repository Folder Structure
+
+```text
+├── agents/                      # LLM Orchestrator Subagents (ADK framework)
+│   ├── planner.py               # Root orchestrator: decomposes goals & schedules
+│   ├── task_optimizer.py        # Optimizes subtask weights and metadata
+│   ├── exam_study.py            # Generates active-recall flashcard sets
+│   └── live_scheduler.py        # Maps calendar slots and handles conflicts
+├── mcp_server/                  # FastAPI Backend API & SQLite DB Server
+│   ├── database.py              # SQLite schemas and runtime migration logic
+│   ├── auth.py                  # JWT authentication and cryptography
+│   ├── schemas.py               # Pydantic input models & validation rules
+│   ├── main.py                  # REST API routes and conflict handlers
+│   └── sandbox/                 # Sandboxed environment for safe file executions
+├── frontend/                    # Vite + React Neo-Brutalist UI Workspace
+│   ├── src/
+│   │   ├── components/          # GUI window frames (TaskBoard, Flashcards, Calendar)
+│   │   ├── utils/               # Fetch API bindings and audio synthesizers
+│   │   ├── App.jsx              # Main dashboard wrapper & streak badge handlers
+│   │   └── index.css            # Retro neo-brutalist Flat styling rules
+│   ├── package.json             # Frontend dependency packages
+│   └── vite.config.js           # Vite server build configuration
+├── skills/                      # Deterministic Python Modules
+│   ├── spaced_repetition/       # SM-2 algorithms and synapse CLI runner
+│   └── task_scoring/            # Weighted prioritization score mappings
+├── tests/                       # Test Suites
+│   └── test_sm2.py              # Spaced repetition unit validation tests
+├── requirements.txt             # Python backend dependencies
+├── synapse.bat / synapse        # Root execution commands for CLI testing
+└── README.md                    # System documentation
+```
+
+---
+
+## 3. Setup & Installation
 
 Ensure you have **Python 3.10+** and **Node.js 18+** installed.
 
@@ -82,7 +116,7 @@ python add_user.py <new_username> <new_password>
 
 ---
 
-## 3. Security & Integrity Rejection Demo
+## 4. Security & Integrity Rejection Demo
 
 Every file read/write operation is sandboxed within `mcp_server/sandbox/`. Path traversal sequences (`..`) or paths resolving outside the sandbox are strictly blocked.
 
@@ -108,7 +142,7 @@ Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/sandbox/read" `
 
 ---
 
-## 4. Multi-Agent Pipeline Walkthrough
+## 5. Multi-Agent Pipeline Walkthrough
 
 1. **User Request / File Upload**: The operator submits a study goal (e.g., *"Prepare for my Math exam next Friday"*) or uploads a syllabus/guide (.pdf or .txt) in the terminal.
 2. **Planner Decomposition**: The **Planner Agent** (powered by `llama3.2`) parses the goal/text, safe-handles missing properties, and divides it into a JSON array of 2-4 subtasks.
@@ -120,7 +154,7 @@ Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/sandbox/read" `
 
 ---
 
-## 5. Spaced Repetition (SM-2) & Custom Skills
+## 6. Spaced Repetition (SM-2) & Custom Skills
 
 ### Deterministic SM-2 Spaced Repetition
 The application implements a 100% deterministic mathematical implementation of the **SuperMemo-2 (SM-2)** algorithm. It calculates consecutive repetitions, ease factors (floored at 1.3), and next review dates without LLM intervention.

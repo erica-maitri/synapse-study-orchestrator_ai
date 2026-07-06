@@ -51,7 +51,7 @@ export default function StudyCalendar({ events, onRefresh }) {
       </div>
 
       {/* Events List */}
-      <div className="flex-1 overflow-y-auto space-y-3 max-h-[360px] p-1">
+      <div className="flex-1 overflow-y-scroll space-y-3 p-1">
         {events.length === 0 ? (
           <div className="text-center text-black text-opacity-60 py-12 italic text-sm font-bold">
             NO SESSIONS SCHEDULED IN TIMETABLE

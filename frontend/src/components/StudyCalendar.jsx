@@ -34,7 +34,7 @@ export default function StudyCalendar({ events, onRefresh }) {
   };
 
   return (
-    <div className="flex flex-col h-full bg-[#FFF5F5] p-2 text-black">
+    <div className="flex flex-col flex-1 bg-[#FFF5F5] p-2 text-black">
       {/* Top action bar */}
       <div className="flex justify-between items-center pb-3 border-b-4 border-black mb-3">
         <div className="flex items-center gap-2">

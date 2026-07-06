@@ -34,7 +34,7 @@ export default function StudyCalendar({ events, onRefresh }) {
   };
 
   return (
-    <div className="flex flex-col bg-[#FFF5F5] p-2 text-black">
+    <div className="flex flex-col h-full bg-[#FFF5F5] p-2 text-black">
       {/* Top action bar */}
       <div className="flex justify-between items-center pb-3 border-b-4 border-black mb-3">
         <div className="flex items-center gap-2">
@@ -51,7 +51,7 @@ export default function StudyCalendar({ events, onRefresh }) {
       </div>
 
       {/* Events List */}
-      <div className="space-y-3 p-1">
+      <div className="flex-1 overflow-y-scroll space-y-3 p-1">
         {events.length === 0 ? (
           <div className="text-center text-black text-opacity-60 py-12 italic text-sm font-bold">
             NO SESSIONS SCHEDULED IN TIMETABLE

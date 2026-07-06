@@ -523,7 +523,7 @@ export default function App() {
 
               {/* 3. Time Grid */}
               {windows.timeGrid && (
-                <div className="neo-border bg-[#FFF5F5] neo-shadow flex flex-col h-[450px] min-h-[350px]">
+                <div className="neo-border bg-[#FFF5F5] neo-shadow flex flex-col h-full min-h-[350px]">
                   <WindowHeader title="TIME_GRID (Calendar Scheduler)" name="timeGrid" color="bg-[#00F5D4] text-black" />
                   <div className="flex-1 p-2 overflow-y-scroll">
                     <StudyCalendar events={events} onRefresh={refreshData} />
@@ -533,9 +533,9 @@ export default function App() {
 
               {/* 4. Memory Vault */}
               {windows.memoryVault && (
-                <div className="neo-border bg-[#FFF5F5] neo-shadow flex flex-col h-[450px] min-h-[350px]">
+                <div className="neo-border bg-[#FFF5F5] neo-shadow flex flex-col h-full min-h-[350px]">
                   <WindowHeader title="MEMORY_VAULT (Spaced Repetition Review)" name="memoryVault" color="bg-[#8B5CF6] text-[#FFF5F5]" />
-                  <div className="flex-1 p-2 overflow-y-scroll">
+                  <div className="p-2">
                     <Flashcards cards={flashcards} onRefresh={refreshData} />
                   </div>
                 </div>

@@ -1,16 +1,44 @@
-# Synapse — Multi-Agent Study & Scheduling System
+# Synapse — Multi-Agent AI Study Planner & Scheduler Workspace
 
-Synapse is a local-first, multi-agent orchestrator and study planning application. Powered by Google's **Agent Development Kit (ADK)** and local **Ollama** models, it breaks down study goals, schedules review calendars, calculates priorities, and builds spaced repetition flashcards.
-
-The system features a **Retro OS Control Workspace** UI complete with synthesized 8-bit sound effects, overlapping window panes, and live agent terminal indicators.
+> *An AI-powered, retro-styled cognitive companion that orchestrates study goals, schedules time slots, resolves conflicts, and manages active recall using deterministic spaced repetition.*
 
 ---
 
-## 1. Architecture Flow
+## 1. Overview
+
+Synapse is a local-first, privacy-respecting cognitive assistant and study planning workspace. It bridges the flexibility of LLM-based multi-agent orchestration with the strict predictability of deterministic code. When you provide a high-level goal (or upload a PDF textbook chapter/syllabus), Synapse's agents decompose it into structured tasks, compute prioritization metrics, schedule conflict-free calendar events, and draft active-recall flashcards.
+
+The system is wrapped in a high-fidelity **Retro OS Control Workspace** UI, featuring flat brutalist borders, hard offset shadows, synthesized 8-bit audio soundscapes, live agent execution consoles, and real-time streak heatmap trackers.
+
+---
+
+## 2. Tech Stack
+
+### Frontend (Desktop Shell UI)
+* **Framework**: React 18, Vite 8 (Client-side bundling and hot-module replacement)
+* **Styling**: Tailwind CSS & Vanilla Custom CSS (Retro OS brutalism system tokens, CRT screen filters, and collapse shadow active states)
+* **Assets & Icons**: Lucide React Icons & custom SVG asset bindings
+* **Audio**: Custom HTML5 Web Audio Synthesizer (for interactive 8-bit sound effects)
+
+### Backend (REST API Server)
+* **Framework**: FastAPI (Python 3.10+)
+* **Database**: SQLite (Local-first, structured storage)
+* **Security & Auth**: Pydantic v2 (Data validation), Passlib with Bcrypt (Password cryptography), PyJWT (JSON Web Tokens)
+* **File Operations**: PyPDF (PDF document layout parsing and text extraction)
+
+### Artificial Intelligence & Orchestration
+* **Agent Framework**: Google **Agent Development Kit (ADK)** for multi-agent loops and tool calls
+* **Local Models**: 
+  * **Planner Agent (Root)**: Powered by `llama3.2:latest` (CPU optimized)
+  * **Subagents**: Powered by `qwen2.5:1.5b` (Highly efficient for fast prioritization scoring, scheduling, and flashcard drafting)
+
+---
+
+## 3. Architecture Flow
 
 ```mermaid
 flowchart TD
-    User([User Goal]) -->|Issue Goal| Planner[Planner Agent - Root]
+    User([User Goal / File Upload]) -->|Issue Input| Planner[Planner Agent - Root]
     Planner -->|Decompose Goal| TaskOpt[Task Optimization Subagent]
     TaskOpt -->|Extract Metadata| Priority[Priority Scoring Skill - Inspectable Python]
     Priority -->|Save Task & Score| DB[(SQLite Database)]
@@ -26,11 +54,12 @@ flowchart TD
     API -->|Deliver Live State| UI[Retro OS Workspace Frontend]
     
     API -.->|Log Tool Calls| Audit[Audit Logs Table]
+    API -->|Verify Path Safe| Sandbox[Sandbox Safe filesystem]
 ```
 
 ---
 
-## 2. Repository Folder Structure
+## 4. Repository Folder Structure
 
 ```text
 ├── agents/                      # LLM Orchestrator Subagents (ADK framework)
@@ -64,111 +93,153 @@ flowchart TD
 
 ---
 
-## 3. Setup & Installation
+## 5. Key Features
+
+### 📅 Self-Healing Timetable (Conflict Resolver)
+If tasks are scheduled close together or overlap (e.g. Task A: 12:00 to 2:30, Task B: 2:15 to 4:00), the backend's self-healing database resolver automatically shifts subsequent blocks back-to-back (Task B becomes 2:30 to 4:15), preserving planned task durations.
+
+### 🧠 Spaced Repetition (SuperMemo-2)
+Spaced repetition calculations are 100% mathematical and deterministic (no LLM hallucinations). It stores card repetitions, ease factors, intervals, and next review dates in SQLite.
+
+### 🎯 Eisenhower Matrix Task Board
+Tasks are prioritized into four flat-colored retro boxes based on importance and urgency ratings:
+* **Q1: DO FIRST** (Urgent & Important)
+* **Q2: SCHEDULE** (Important, Not Urgent)
+* **Q3: DELEGATE/OPTIMIZE** (Urgent, Not Important)
+* **Q4: ELIMINATE** (Neither)
+
+### 📈 Engagement Streak & Heatmap
+Tracks consecutive days you have completed at least one flashcard review. Displays a live flame badge on the sidebar and a neo-brutalist 30-day contribution activity calendar grid.
+
+### 📄 PDF Document Upload Planner
+Click the teal `[FILE]` button in the chat console to upload study guides, syllabus documents, or text files. The backend extracts the text (utilizing `pypdf`) and auto-generates your calendar sessions, subtasks, and flashcards from it.
+
+### 🔗 External Calendar Export
+Export your local calendar to standard iCal format (`.ics`) by clicking the export action. It supports both header tokens and query-string token fallback (`?token=...`) so you can download and sync it directly into Google Calendar, Apple Calendar, or Outlook.
+
+---
+
+## 6. Algorithms & Math Mappings
+
+### A. SuperMemo-2 (SM-2) Spaced Repetition
+Calculates intervals and ease factors based on user-submitted grading quality $q$ (scale $0$ to $5$):
+* **Quality $q < 3$ (Lapse)**: Reset consecutive repetitions to $0$ and interval to $1$ day.
+* **Quality $q \ge 3$ (Success)**:
+  * Repetition $1$: Interval = $1$ day.
+  * Repetition $2$: Interval = $6$ days.
+  * Repetition $n > 2$: Interval = $\text{round}(\text{Interval}_{n-1} \times \text{Ease Factor})$.
+* **Ease Factor Update**: 
+  $$\text{EF}' = \text{EF} + \left(0.1 - (5 - q) \times \left(0.08 + (5 - q) \times 0.02\right)\right)$$
+  *EF' is floored at an absolute minimum value of 1.3 to prevent cards from piling up too fast.*
+
+### B. Priority Scoring (Eisenhower Matrix)
+Tasks are scored on a scale from $1.0$ to $5.0$. Proximity to due dates increases priority automatically:
+$$\text{Score} = (\text{Importance} \times 0.45) + (\text{Urgency} \times 0.35) + ((\text{Time Factor} \times 5.0) \times 0.20)$$
+* **Time Factor**: Evaluated as $1.0$ if the task is overdue, $0.0$ if it is due $\ge 14$ days in the future, or linearly scaled as $1.0 - (\text{days remaining} / 14)$ otherwise.
+
+### C. Self-Healing Calendar Shifter
+Cascades through calendar events ordered by `start_time` ASC. If `current_start < previous_end`:
+* $\text{Duration} = \text{current\_end} - \text{current\_start}$
+* $\text{New Start} = \text{previous\_end}$
+* $\text{New End} = \text{New Start} + \text{Duration}$
+Updates the database and propagates downstream to heal subsequent events.
+
+---
+
+## 7. Setup, Installation & Running the Project
 
 Ensure you have **Python 3.10+** and **Node.js 18+** installed.
 
-### Step 1: Initialize Ollama Models (CPU Optimized)
-Ensure Ollama is running, then pull the required models:
+### Step 1: Install Ollama & Pull Models
+Install [Ollama](https://ollama.com) and run these commands to fetch the local LLM weights:
 ```bash
-# Pull the Planner agent model
 ollama pull llama3.2:latest
-
-# Pull the highly efficient subagent model
 ollama pull qwen2.5:1.5b
 ```
 
 ### Step 2: Set up the Python Backend
-We recommend using a virtual environment:
-```powershell
-# Create virtual environment
+```bash
+# Create a virtual environment
 python -m venv .venv
 
-# Activate (Windows PowerShell)
+# Activate the virtual environment
+# Windows PowerShell:
 .venv\Scripts\Activate.ps1
+# macOS/Linux:
+source .venv/bin/activate
 
-# Install dependencies
+# Install package dependencies
 pip install -r requirements.txt
 ```
 
-### Step 3: Run the Backend API
-Start the FastAPI server:
+### Step 3: Seed Database & Run the Server
+Create your login credentials and start FastAPI:
 ```bash
+# Seed initial user credentials (e.g. admin / password123)
+python add_user.py admin password123
+
+# Start the FastAPI server
 python -m mcp_server.main
 ```
-The server will run on `http://127.0.0.1:8000`.
+*The API server will launch at `http://127.0.0.1:8000`.*
 
-### Step 4: Run the Frontend App
-Install Node packages and launch Vite:
+### Step 4: Launch the Frontend
+In a new terminal window, compile the assets and launch the dev environment:
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
-Open your browser to `http://localhost:5173`. Use credentials `admin` / `password123` to log in.
-
-### Step 5: Managing Users (Optional)
-If you want to log in with a different user, you can create new user credentials using the included helper script. In your backend terminal, run:
-```powershell
-python add_user.py <new_username> <new_password>
-```
-*Note: You only need to run this command **once** for each user you want to add. Their details are permanently stored in the local SQLite database.*
+*Open your browser and navigate to `http://localhost:5173`. Log in with your seeded credentials (e.g., `admin` / `password123`).*
 
 ---
 
-## 4. Security & Integrity Rejection Demo
+## 8. CLI Skill Execution & Test Verification
 
-Every file read/write operation is sandboxed within `mcp_server/sandbox/`. Path traversal sequences (`..`) or paths resolving outside the sandbox are strictly blocked.
+You can execute and verify the SM-2 algorithm calculations directly from the command line:
 
-### Try a Malicious Traversal (Rejection Demonstration)
-You can verify the security policy by triggering a POST request to read files outside the sandbox. 
-
-Open a terminal and run the following command (which attempts to traverse directories):
+### CLI Wrapper Test (Windows)
 ```powershell
-Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/sandbox/read" `
-  -Method POST `
-  -Headers @{ "Authorization" = "Bearer <YOUR_JWT_TOKEN>" } `
-  -ContentType "application/json" `
-  -Body '{"file_path": "../../../Windows/win.ini"}'
+.\synapse.bat skills run spaced_repetition --quality 4 --repetitions 2 --ease_factor 2.3 --interval 6
 ```
 
-**Expected Rejection Response:**
+### CLI Wrapper Test (Bash/Linux)
+```bash
+./synapse skills run spaced_repetition --quality 4 --repetitions 2 --ease_factor 2.3 --interval 6
+```
+
+### Output Format
+The tool will execute the deterministic Python logic and output the scheduled parameters in JSON format:
 ```json
 {
-  "detail": "Forbidden: Access denied outside sandbox context."
+  "next_interval": 14,
+  "next_repetitions": 3,
+  "next_ease_factor": 2.3,
+  "next_review_date": "2026-07-20"
 }
 ```
-*Note: Any attempt is also logged directly to the `audit_logs` table in SQLite for security inspection.*
+
+### Run Unit Tests
+Validate the SM-2 logic and boundaries by running the test suite:
+```bash
+.venv/Scripts/python -m unittest tests/test_sm2.py
+```
 
 ---
 
-## 5. Multi-Agent Pipeline Walkthrough
+## 9. Security & Model Context Protocol (MCP) Sandbox
 
-1. **User Request / File Upload**: The operator submits a study goal (e.g., *"Prepare for my Math exam next Friday"*) or uploads a syllabus/guide (.pdf or .txt) in the terminal.
-2. **Planner Decomposition**: The **Planner Agent** (powered by `llama3.2`) parses the goal/text, safe-handles missing properties, and divides it into a JSON array of 2-4 subtasks.
-3. **Task Optimization**: The **Task Optimization Agent** rates the importance and urgency of each subtask. It calls the inspectable Python scoring skill to calculate the score and map it to an Eisenhower Matrix quadrant.
-4. **Exam Study Generation**: The **Exam Study Agent** generates high-quality active recall Q&A flashcards (subject tagged and supporting visual attachments) and schedules them for immediate review.
-5. **Live Scheduler**: The **Live Scheduler Agent** maps out timetable blocks (starting tomorrow) with a 15-minute buffer between tasks, ensuring the highest priority tasks are scheduled first.
-6. **Self-Healing Conflict Resolution**: If any scheduled blocks overlap, the database resolver automatically shifts subsequent blocks back-to-back, preserving planned task durations.
-7. **Audit & Dashboard Sync**: The tool actions are logged to SQLite, and the frontend automatically pulls the updated tasks, flashcards, and calendar events.
+Synapse operates a secured sandboxed directory for filesystem writes/reads located at `mcp_server/sandbox/`. Path traversal (`..`) sequences or absolute paths pointing outside of this directory are blocked and rejected with a `403 Forbidden` status. 
+
+Every action (agent goals, tool executions, and file operations) is logged to the local SQLite `audit_logs` table for audit visibility. You can inspect this log by maximizing the **System Logs (`SYSTEMLOG.EXE`)** window at the bottom of the Workspace dashboard.
 
 ---
 
-## 6. Spaced Repetition (SM-2) & Custom Skills
+## 10. End-to-End Demo Flow
 
-### Deterministic SM-2 Spaced Repetition
-The application implements a 100% deterministic mathematical implementation of the **SuperMemo-2 (SM-2)** algorithm. It calculates consecutive repetitions, ease factors (floored at 1.3), and next review dates without LLM intervention.
-* **Skill Module**: [sm2.py](file:///c:/Users/ihsko/OneDrive/Documents/kaggle_project/skills/spaced_repetition/sm2.py)
-* **CLI Executable wrapper**: Run spaced repetition calculations from your terminal using:
-  ```powershell
-  .\synapse.bat skills run spaced_repetition --quality 4 --repetitions 2 --ease_factor 2.3 --interval 6
-  ```
-
-### Live Streak & Engagement Tracker
-* **Review Streaks Table**: Tracks consecutive days with at least one card review in SQLite (`review_streaks`).
-* **Flame Badge & Heatmap**: Displays an orange/pink flame badge on the sidebar and a neo-brutalist GitHub-style 30-day activity contribution graph on the Memory Vault dashboard.
-
-### Manual Flashcard CRUD
-Manage flashcards separately from the automated pipeline with the manual Database Manager:
-* **Add Cards Window**: Click `+ ADD CARD` to open the `[NEWCARD.EXE]` window.
-* **Edit/Delete**: Use the list manager table at the bottom of the browse page to alter contents or perform permanent database deletions.
+1. **Submit Goal / File**: Paste a text goal or upload a study file in **`MISSION_CONTROL.EXE`**.
+2. **Decomposition**: `PlannerAgent` outlines tasks and determines if they are general or study-related.
+3. **Optimizing**: `TaskOptimizer` sets importance, urgency, and due dates, which are converted to Eisenhower quadrants.
+4. **Generating Flashcards**: `ExamStudyAgent` creates active-recall Q&A cards and puts them in `MEMORY_VAULT.EXE`.
+5. **Conflict Resolution**: `LiveScheduler` puts events on `TIME_GRID.EXE`. Overlaps are resolved automatically in the database.
+6. **Active Study**: As you review cards, you grade your recall ($0$ to $5$). The SM-2 calculator updates card schedules, and the heatmap tracks your daily study streaks!

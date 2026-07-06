@@ -1,0 +1,75 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    background-color: #8B5CF6; /* Vibrant purple background */
+    color: #000000; /* Pure black text */
+    font-family: 'Courier New', Courier, monospace;
+    overflow-x: hidden;
+  }
+}
+
+/* Custom Neo-Brutalist & Retro OS Utilities */
+.neo-border {
+  border: 4px solid #000000; /* Pure black borders */
+}
+
+.neo-shadow {
+  box-shadow: 6px 6px 0px 0px #000000;
+}
+
+.neo-shadow-active {
+  box-shadow: 2px 2px 0px 0px #000000;
+  transform: translate(4px, 4px);
+}
+
+.neo-btn {
+  border: 4px solid #000000;
+  box-shadow: 4px 4px 0px 0px #000000;
+  transition: all 0.05s ease;
+  font-weight: bold;
+}
+
+.neo-btn:active {
+  box-shadow: 0px 0px 0px 0px #000000;
+  transform: translate(4px, 4px);
+}
+
+/* CRT Scanline Filter effect */
+.crt-screen {
+  position: relative;
+  overflow: hidden;
+}
+
+.crt-screen::after {
+  content: " ";
+  display: block;
+  position: absolute;
+  top: 0; left: 0; bottom: 0; right: 0;
+  background: linear-gradient(rgba(0, 0, 0, 0) 50%, rgba(0, 0, 0, 0.15) 50%), linear-gradient(90deg, rgba(255, 245, 245, 0.05), rgba(0, 0, 0, 0.02));
+  z-index: 20;
+  background-size: 100% 4px, 6px 100%;
+  pointer-events: none;
+}
+
+/* Custom Scrollbar for Retro Feel */
+::-webkit-scrollbar {
+  width: 16px;
+  height: 16px;
+}
+
+::-webkit-scrollbar-track {
+  background: #FFF5F5; /* Cream track */
+  border-left: 4px solid #000000;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #FFDE4D; /* Yellow thumb */
+  border: 4px solid #000000;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #FF006E; /* Pink hover */
+}

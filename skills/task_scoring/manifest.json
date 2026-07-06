@@ -1,0 +1,25 @@
+{
+  "name": "task_scoring",
+  "description": "Calculates priority score and Eisenhower quadrant based on task metadata.",
+  "inputs": {
+    "importance": {
+      "type": "integer",
+      "description": "Task importance (1-5)",
+      "required": true
+    },
+    "urgency": {
+      "type": "integer",
+      "description": "Task urgency (1-5)",
+      "required": true
+    },
+    "due_date": {
+      "type": "string",
+      "description": "Due date in YYYY-MM-DD format",
+      "required": false
+    }
+  },
+  "outputs": {
+    "score": "float",
+    "quadrant": "string"
+  }
+}

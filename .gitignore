@@ -1,0 +1,64 @@
+# Virtual Environment
+.venv/
+venv/
+ENV/
+env/
+
+# Python Cache & Build
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local Databases (keeps user tasks and credentials private)
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+mcp_server/synapse.db
+synapse.db
+
+# Environment Configurations (prevents secret leaks)
+.env
+.env.production
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Node / Frontend dependencies & builds
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+.eslintcache
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# IDEs and Editors
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+*.swo
+
+# Operating System Files
+.DS_Store
+Thumbs.db
+
+# Agent/Workspace Logs and Scratch Files
+.system_generated/
+*.log
+scratch/
+browser/
+task.md
+implementation_plan.md
+walkthrough.md

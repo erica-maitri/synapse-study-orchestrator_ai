@@ -1,0 +1,32 @@
+{
+  "name": "spaced_repetition",
+  "description": "Calculates spaced repetition intervals for flashcards using the SM-2 algorithm.",
+  "inputs": {
+    "quality": {
+      "type": "integer",
+      "description": "Performance score (0-5)",
+      "required": true
+    },
+    "repetitions": {
+      "type": "integer",
+      "description": "Consecutive successful reviews",
+      "required": true
+    },
+    "interval": {
+      "type": "integer",
+      "description": "Current interval in days",
+      "required": true
+    },
+    "ease_factor": {
+      "type": "float",
+      "description": "Current ease factor (e.g. 2.5)",
+      "required": true
+    }
+  },
+  "outputs": {
+    "next_repetitions": "integer",
+    "next_interval": "integer",
+    "next_ease_factor": "float",
+    "next_review_date": "string (ISO date)"
+  }
+}

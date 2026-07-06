@@ -1,0 +1,1 @@
+# Synapse MCP Server Package

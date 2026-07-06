@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: ./Dockerfiles/Backend.dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+      - HOST=0.0.0.0
+      - OPENAI_API_BASE=http://host.docker.internal:11434/v1
+      - OPENAI_API_KEY=ollama
+      - JWT_SECRET=super_secret_synapse_key_change_me_in_prod
+      - JWT_ALGORITHM=HS256
+      - ACCESS_TOKEN_EXPIRE_MINUTES=1440
+      - SANDBOX_DIR=mcp_server/sandbox
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./mcp_server:/app/mcp_server
+      - ./agents:/app/agents
+      - ./skills:/app/skills
+    restart: always
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: ../Dockerfiles/Frontend.dockerfile
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+    restart: always

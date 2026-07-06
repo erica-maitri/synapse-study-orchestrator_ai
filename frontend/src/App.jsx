@@ -525,7 +525,7 @@ export default function App() {
               {windows.timeGrid && (
                 <div className="neo-border bg-[#FFF5F5] neo-shadow flex flex-col h-full min-h-[350px]">
                   <WindowHeader title="TIME_GRID (Calendar Scheduler)" name="timeGrid" color="bg-[#00F5D4] text-black" />
-                  <div className="flex-1 p-2 overflow-hidden">
+                  <div className="flex-1 p-2 overflow-hidden flex flex-col">
                     <StudyCalendar events={events} onRefresh={refreshData} />
                   </div>
                 </div>

@@ -139,9 +139,9 @@ $$\text{Score} = (\text{Importance} \times 0.45) + (\text{Urgency} \times 0.35) 
 
 ### C. Self-Healing Calendar Shifter
 Cascades through calendar events ordered by `start_time` ASC. If `current_start < previous_end`:
-* $\text{Duration} = \text{current\_end} - \text{current\_start}$
-* $\text{New Start} = \text{previous\_end}$
-* $\text{New End} = \text{New Start} + \text{Duration}$
+* `Duration = current_end - current_start`
+* `New Start = previous_end`
+* `New End = New Start + Duration`
 Updates the database and propagates downstream to heal subsequent events.
 
 ---

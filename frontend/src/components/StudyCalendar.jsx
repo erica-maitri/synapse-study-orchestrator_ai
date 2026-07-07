@@ -3,7 +3,7 @@ import { playSound } from "../utils/audio";
 import { api } from "../utils/api";
 import { Calendar, Download, Trash2, Clock } from "lucide-react";
 
-export default function StudyCalendar({ events, onRefresh }) {
+export default function StudyCalendar({ events, onRefresh, maximized }) {
   const handleExportICS = () => {
     playSound.success();
     // Redirect to the API export link
@@ -51,7 +51,7 @@ export default function StudyCalendar({ events, onRefresh }) {
       </div>
 
       {/* Events List */}
-      <div className="flex-1 overflow-y-scroll space-y-3 p-1">
+      <div className={`flex-1 overflow-y-auto space-y-3 p-1 ${maximized ? "" : "max-h-[300px] md:max-h-[350px] xl:max-h-[420px]"}`}>
         {events.length === 0 ? (
           <div className="text-center text-black text-opacity-60 py-12 italic text-sm font-bold">
             NO SESSIONS SCHEDULED IN TIMETABLE

@@ -38,6 +38,22 @@ export default function TaskBoard({ tasks, onRefresh }) {
     }
   };
 
+  const handleClearQuadrant = async (quadrantId) => {
+    playSound.click();
+    const qTasks = tasks.filter((t) => t.quadrant === quadrantId);
+    if (qTasks.length === 0) return;
+
+    if (confirm(`Are you sure you want to delete all ${qTasks.length} tasks in ${quadrantId}?`)) {
+      try {
+        await Promise.all(qTasks.map((t) => api.deleteTask(t.id)));
+        playSound.success();
+        onRefresh();
+      } catch (err) {
+        playSound.error();
+      }
+    }
+  };
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 h-full overflow-y-auto p-2 bg-[#FFF5F5]">
       {quadrants.map((q) => {
@@ -46,8 +62,17 @@ export default function TaskBoard({ tasks, onRefresh }) {
         return (
           <div key={q.id} className="neo-border bg-[#FFF5F5] flex flex-col h-[230px] border-black">
             {/* Header */}
-            <div className={`neo-border-b border-b-4 border-black p-2 font-bold text-center ${q.color}`}>
-              {q.title} ({qTasks.length})
+            <div className={`neo-border-b border-b-4 border-black p-2 font-bold relative flex items-center justify-center ${q.color}`}>
+              <span>{q.title} ({qTasks.length})</span>
+              {qTasks.length > 0 && (
+                <button
+                  onClick={() => handleClearQuadrant(q.id)}
+                  className="absolute right-2 px-1.5 py-0.5 border border-black bg-white hover:bg-[#FF006E] hover:text-white text-black text-[9px] font-extrabold uppercase shadow-[1px_1px_0px_rgba(0,0,0,1)] active:translate-y-[1px] active:translate-x-[1px] active:shadow-none transition-all"
+                  title="Clear all tasks in this quadrant"
+                >
+                  Clear All
+                </button>
+              )}
             </div>
             
             {/* Task list */}

@@ -13,6 +13,47 @@ from agents.live_scheduler import live_scheduler_agent
 from mcp_server.database import get_db_connection
 from skills.task_scoring.score import calculate_priority_score
 
+def safe_parse_int(val, default: int = 60) -> int:
+    if val is None:
+        return default
+    if isinstance(val, (int, float)):
+        return int(val)
+    val_str = str(val).strip()
+    if not val_str:
+        return default
+    if val_str.isdigit():
+        return int(val_str)
+    
+    try:
+        return int(float(val_str))
+    except ValueError:
+        pass
+        
+    val_lower = val_str.lower()
+    
+    # Check for patterns like "1.5 hours" or "2.5 hrs"
+    float_hour_match = re.search(r"(\d+\.\d+)\s*h", val_lower)
+    if float_hour_match:
+        return int(float(float_hour_match.group(1)) * 60)
+        
+    # Check for patterns like "2 hours" or "1 hour 30 mins"
+    hour_match = re.search(r"(\d+)\s*h", val_lower)
+    min_match = re.search(r"(\d+)\s*m", val_lower)
+    
+    if hour_match:
+        hours = int(hour_match.group(1))
+        minutes = int(min_match.group(1)) if min_match else 0
+        return hours * 60 + minutes
+    elif min_match:
+        return int(min_match.group(1))
+        
+    # Fallback: extract first sequence of digits
+    num_match = re.search(r"\d+", val_str)
+    if num_match:
+        return int(num_match.group(0))
+        
+    return default
+
 def run_agent(agent, prompt: str) -> str:
     session_service = InMemorySessionService()
     runner = Runner(agent=agent, session_service=session_service, auto_create_session=True, app_name=agent.name)
@@ -97,12 +138,21 @@ planner_agent = Agent(
         "Example output:\n"
         "[\n"
         "  {\n"
-        "    \"title\": \"Write outline for thesis\",\n"
-        "    \"description\": \"Draft the introduction and key research sections for the thesis outline document.\",\n"
+        "    \"title\": \"DP Practice: Day 1\",\n"
+        "    \"description\": \"Solve 10 dynamic programming questions and analyze their complexity.\",\n"
         "    \"importance\": 4,\n"
         "    \"urgency\": 4,\n"
-        "    \"estimated_duration\": 60,\n"
-        "    \"due_date\": \"2026-07-09\",\n"
+        "    \"estimated_duration\": 120,\n"
+        "    \"due_date\": \"2026-07-08\",\n"
+        "    \"type\": \"study\"\n"
+        "  },\n"
+        "  {\n"
+        "    \"title\": \"Buy groceries\",\n"
+        "    \"description\": \"Purchase milk, eggs, and bread from the supermarket.\",\n"
+        "    \"importance\": 2,\n"
+        "    \"urgency\": 3,\n"
+        "    \"estimated_duration\": 30,\n"
+        "    \"due_date\": \"2026-07-07\",\n"
         "    \"type\": \"general\"\n"
         "  }\n"
         "]"
@@ -180,65 +230,92 @@ def run_synapse_pipeline(user_goal: str) -> dict:
     daily_time_slots = {}
     default_schedule_date = datetime.date.today() + datetime.timedelta(days=1)
     
+    # Pre-collect study tasks for batched flashcard generation
+    study_tasks = []
     for task_data in subtasks:
-        try:
-            # Step 2: Run Task Optimizer Agent to prioritize the task
-            results["logs"].append(f"Optimizing task: {task_data.get('title', 'Untitled Task')}")
-            optimizer_prompt = f"Optimize and score this task: {json.dumps(task_data)}"
-            opt_response = run_agent(task_optimizer_agent, optimizer_prompt)
+        is_study_task = False
+        task_type = str(task_data.get("type", "")).lower().strip()
+        if task_type == "study":
+            is_study_task = True
+        else:
+            study_keywords = ["study", "practice", "read", "summarize", "learn", "review", "exam", "paper", "concept"]
+            title_lower = str(task_data.get("title", "")).lower()
+            desc_lower = str(task_data.get("description", "")).lower()
+            if any(k in title_lower or k in desc_lower for k in study_keywords):
+                is_study_task = True
+        if is_study_task:
+            study_tasks.append(task_data)
             
-            # Extract JSON from optimizer response
-            opt_raw = opt_response.strip()
-            if opt_raw.startswith("```"):
-                lines = opt_raw.splitlines()
+    # Batched Flashcard Generation
+    flashcards_by_subject = {}
+    if study_tasks:
+        results["logs"].append(f"Study agent generating flashcards for {len(study_tasks)} tasks in batch.")
+        study_prompt = (
+            f"Generate exactly 3 high-quality flashcards for each of the following study topics:\n"
+            f"{json.dumps([{'title': t.get('title'), 'description': t.get('description')} for t in study_tasks])}\n\n"
+            "Quality rules:\n"
+            "- Do NOT split sequential steps or list items (e.g., step 5 as question, step 6 as answer). They must form a complete Q&A pair.\n"
+            "- The 'front' must be a clear, specific question, prompt, or term to define (e.g., 'What is X?' or 'Why do we need Y?').\n"
+            "- The 'back' must be the direct, concise answer.\n"
+            "- Do NOT prefix questions or answers with arbitrary sequential numbers (like '1.', '2.', '5.') unless they describe a count (e.g., '3 main steps').\n"
+            "- Ensure the cards test active recall effectively.\n\n"
+            "Format rule:\n"
+            "Always respond with a JSON object containing a 'flashcards' key pointing to a list of flashcard objects. "
+            "Each flashcard object in the list must be a separate dictionary containing exactly three fields: 'subject', 'front', and 'back'. "
+            "Set 'subject' to the exact title of the study topic the flashcard is generated for.\n"
+            "Do NOT group multiple questions/answers under duplicate keys in a single object; generate a separate object in the list for each individual flashcard (so there will be a total of 3 * number of topics separate objects in the list).\n"
+            "Return ONLY valid JSON."
+        )
+        try:
+            study_response = run_agent(exam_study_agent, study_prompt)
+            study_raw = study_response.strip()
+            if study_raw.startswith("```"):
+                lines = study_raw.splitlines()
                 if lines[0].startswith("```"):
                     lines = lines[1:]
                 if lines[-1].startswith("```"):
                     lines = lines[:-1]
-                opt_raw = "\n".join(lines).strip()
+                study_raw = "\n".join(lines).strip()
             
             try:
-                start_idx = opt_raw.find("{")
-                end_idx = opt_raw.rfind("}")
+                start_idx = study_raw.find("{")
+                end_idx = study_raw.rfind("}")
                 if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
-                    opt_raw_json = opt_raw[start_idx:end_idx+1]
-                    scored_data = json.loads(opt_raw_json)
+                    study_raw_cleaned = study_raw[start_idx:end_idx+1]
+                    study_raw_cleaned = re.sub(r',\s*([\]}])', r'\1', study_raw_cleaned)
+                    data = json.loads(study_raw_cleaned)
+                    fcs = data.get("flashcards", [])
                 else:
-                    raise ValueError("No JSON object block found")
-            except Exception as opt_err:
-                print(f"[Optimizer Warning] JSON parsing failed, trying markdown parser. Error: {opt_err}")
-                try:
-                    parsed_markdown = parse_markdown_to_dict(opt_raw)
-                    scored_data = {
-                        "title": parsed_markdown.get("title") or task_data.get("title", "Untitled Task"),
-                        "description": parsed_markdown.get("description") or task_data.get("description", ""),
-                        "importance": parsed_markdown.get("importance") or task_data.get("importance", 3),
-                        "urgency": parsed_markdown.get("urgency") or task_data.get("urgency", 3),
-                        "priority_score": parsed_markdown.get("priority_score") or 3.5,
-                        "quadrant": parsed_markdown.get("quadrant") or "Q2: Schedule",
-                        "estimated_duration": parsed_markdown.get("estimated_duration") or task_data.get("estimated_duration", 60),
-                        "due_date": parsed_markdown.get("due_date") or task_data.get("due_date", (datetime.date.today() + datetime.timedelta(days=1)).isoformat())
-                    }
-                except Exception as md_err:
-                    print(f"[Optimizer Warning] Markdown parsing also failed. Using fallback. Error: {md_err}")
-                    scored_data = {
-                        "title": task_data.get("title", "Untitled Task"),
-                        "description": task_data.get("description", ""),
-                        "importance": task_data.get("importance", 3),
-                        "urgency": task_data.get("urgency", 3),
-                        "priority_score": 3.5,
-                        "quadrant": "Q2: Schedule",
-                        "estimated_duration": task_data.get("estimated_duration", 60),
-                        "due_date": task_data.get("due_date", (datetime.date.today() + datetime.timedelta(days=1)).isoformat())
-                    }
+                    raise ValueError("No JSON object found in response")
+            except Exception as fc_err:
+                print(f"[Study Warning] Failed to parse JSON, trying regex extractor. Error: {fc_err}")
+                pattern = r'\{\s*[\'"]subject[\'"]\s*:\s*[\'"](.*?)[\'"]\s*,\s*[\'"]front[\'"]\s*:\s*[\'"](.*?)[\'"]\s*,\s*[\'"]back[\'"]\s*:\s*[\'"](.*?)[\'"]\s*\}'
+                matches = re.findall(pattern, study_raw, re.DOTALL)
+                if matches:
+                    fcs = [{"subject": m[0].strip(), "front": m[1].strip(), "back": m[2].strip()} for m in matches]
+                    print(f"[Study Info] Successfully extracted {len(fcs)} flashcards using regex fallback.")
+                else:
+                    raise fc_err
+            
+            # Group flashcards by subject
+            for fc in fcs:
+                subject = fc.get("subject", "General")
+                if subject not in flashcards_by_subject:
+                    flashcards_by_subject[subject] = []
+                flashcards_by_subject[subject].append(fc)
                 
-            log_audit("TaskOptimizer", "score_task_priority", task_data, "success")
+        except Exception as batch_fc_err:
+            print(f"[Study Warning] Batch flashcard generation failed: {batch_fc_err}. Will fallback to default cards during loop.")
             
-            # Calculate score & quadrant deterministically in Python to prevent LLM mismatches
-            imp = int(scored_data.get("importance", task_data.get("importance", 3)))
-            urg = int(scored_data.get("urgency", task_data.get("urgency", 3)))
+    for task_data in subtasks:
+        try:
+            # Step 2: Optimize and prioritize task locally in Python (Bypass TaskOptimizer Agent)
+            results["logs"].append(f"Optimizing task: {task_data.get('title', 'Untitled Task')}")
             
-            due = scored_data.get("due_date", task_data.get("due_date"))
+            imp = safe_parse_int(task_data.get("importance", 3), 3)
+            urg = safe_parse_int(task_data.get("urgency", 3), 3)
+            due = task_data.get("due_date")
+            
             task_date = None
             if due:
                 try:
@@ -255,7 +332,32 @@ def run_synapse_pipeline(user_goal: str) -> dict:
                 due = default_schedule_date.isoformat()
                 
             scoring = calculate_priority_score(imp, urg, due)
+            
+            title_val = task_data.get("title", "Untitled Task")
+            if isinstance(title_val, list):
+                title_val = " ".join(str(item) for item in title_val)
+            else:
+                title_val = str(title_val)
 
+            desc_val = task_data.get("description", "")
+            if isinstance(desc_val, list):
+                desc_val = "\n".join(str(item) for item in desc_val)
+            else:
+                desc_val = str(desc_val)
+
+            scored_data = {
+                "title": title_val,
+                "description": desc_val,
+                "importance": imp,
+                "urgency": urg,
+                "priority_score": scoring["score"],
+                "quadrant": scoring["quadrant"],
+                "estimated_duration": safe_parse_int(task_data.get("estimated_duration", 60), 60),
+                "due_date": due
+            }
+            
+            log_audit("TaskOptimizer", "score_task_priority", task_data, "success")
+            
             # Insert task into Database
             conn = get_db_connection()
             cursor = conn.cursor()
@@ -263,13 +365,13 @@ def run_synapse_pipeline(user_goal: str) -> dict:
                 """INSERT INTO tasks (title, description, importance, urgency, score, quadrant, estimated_duration, due_date)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
-                    scored_data.get("title", task_data.get("title", "Untitled Task")),
-                    scored_data.get("description", task_data.get("description", "")),
+                    scored_data["title"],
+                    scored_data["description"],
                     imp,
                     urg,
                     scoring["score"],
                     scoring["quadrant"],
-                    int(scored_data.get("estimated_duration", task_data.get("estimated_duration", 60))),
+                    scored_data["estimated_duration"],
                     due
                 )
             )
@@ -278,61 +380,72 @@ def run_synapse_pipeline(user_goal: str) -> dict:
             conn.close()
             
             scored_data["id"] = task_id
-            scored_data["importance"] = imp
-            scored_data["urgency"] = urg
-            scored_data["due_date"] = due
-            scored_data["priority_score"] = scoring["score"]
-            scored_data["quadrant"] = scoring["quadrant"]
             results["tasks_created"].append(scored_data)
             
-            # Step 3: Run Exam Study Agent if the task type is 'study'
-            if task_data.get("type") == "study":
-                results["logs"].append(f"Study agent generating flashcards for: {task_data.get('title', 'Untitled Task')}")
-                study_prompt = (
-                    f"Generate 3 high-quality flashcards for study topic: '{task_data.get('title', 'Untitled Task')}' with context '{task_data.get('description', '')}'. "
-                    "Rule: The 'front' must be a clear, active-recall question or term (e.g., 'What is X?' or 'Why do we need Y?'). "
-                    "The 'back' must be the direct answer. Do NOT split adjacent steps or list items across front/back, "
-                    "and do not prefix with numbered list indices. Return ONLY a JSON list of objects containing 'front' and 'back'."
-                )
-                study_response = run_agent(exam_study_agent, study_prompt)
+            # Step 3: Run Exam Study Agent if the task type is 'study' (with fallback checks)
+            is_study_task = False
+            task_type = str(task_data.get("type", "")).lower().strip()
+            if task_type == "study":
+                is_study_task = True
+            else:
+                study_keywords = ["study", "practice", "read", "summarize", "learn", "review", "exam", "paper", "concept"]
+                title_lower = str(task_data.get("title", "")).lower()
+                desc_lower = str(task_data.get("description", "")).lower()
+                if any(k in title_lower or k in desc_lower for k in study_keywords):
+                    is_study_task = True
+                    
+            if is_study_task:
+                task_title = scored_data["title"]
+                flashcards = flashcards_by_subject.get(task_title)
                 
-                study_raw = study_response.strip()
-                if study_raw.startswith("```"):
-                    lines = study_raw.splitlines()
-                    if lines[0].startswith("```"):
-                        lines = lines[1:]
-                    if lines[-1].startswith("```"):
-                        lines = lines[:-1]
-                    study_raw = "\n".join(lines).strip()
-                
-                try:
-                    start_idx = study_raw.find("[")
-                    end_idx = study_raw.rfind("]")
-                    if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
-                        study_raw = study_raw[start_idx:end_idx+1]
-                    flashcards = json.loads(study_raw)
-                except Exception as fc_err:
-                    print(f"[Study Warning] Failed to parse JSON, using fallback. Error: {fc_err}")
+                if not flashcards:
+                    # Try soft matching if exact title match fails
+                    for subj, cards in flashcards_by_subject.items():
+                        if subj.lower() in task_title.lower() or task_title.lower() in subj.lower():
+                            flashcards = cards
+                            break
+                            
+                if not flashcards:
+                    # Fallback to default card
+                    print(f"[Study Warning] No flashcards found for '{task_title}'. Using default concept review card.")
                     flashcards = [
                         {
-                            "front": f"Concept review: {task_data.get('title', 'Untitled Task')}",
-                            "back": f"Recall details regarding: {task_data.get('description', '')}"
+                            "front": f"Concept review: {task_title}",
+                            "back": f"Recall details regarding: {scored_data['description']}"
                         }
                     ]
-                    
-                log_audit("ExamStudyAgent", "generate_flashcards", {"topic": task_data.get('title', 'Untitled Task')}, "success")
+                
+                log_audit("ExamStudyAgent", "generate_flashcards", {"topic": task_title}, "success")
                 
                 conn = get_db_connection()
                 cursor = conn.cursor()
                 for fc in flashcards:
-                    subject = fc.get("subject", fc.get("tag", task_data.get('title', 'Untitled Task')))
+                    subject = fc.get("subject", task_title)
+                    front = fc.get("front", "")
+                    back = fc.get("back", "")
+                    
+                    if isinstance(subject, list):
+                        subject = " ".join(str(item) for item in subject)
+                    else:
+                        subject = str(subject)
+                        
+                    if isinstance(front, list):
+                        front = "\n".join(str(item) for item in front)
+                    else:
+                        front = str(front)
+                        
+                    if isinstance(back, list):
+                        back = "\n".join(str(item) for item in back)
+                    else:
+                        back = str(back)
+                        
                     cursor.execute(
                         "INSERT INTO flashcards (front, back, subject, next_review_date) VALUES (?, ?, ?, ?)",
-                        (fc["front"], fc["back"], subject, datetime.date.today().isoformat())
+                        (front, back, subject, datetime.date.today().isoformat())
                     )
                     results["flashcards_created"].append({
-                        "front": fc["front"],
-                        "back": fc["back"]
+                        "front": front,
+                        "back": back
                     })
                 conn.commit()
                 conn.close()
@@ -344,13 +457,13 @@ def run_synapse_pipeline(user_goal: str) -> dict:
                 
             current_time_slot = daily_time_slots[date_str]
             
-            duration_mins = int(scored_data.get("estimated_duration", 60))
+            duration_mins = scored_data["estimated_duration"]
             end_time_slot = current_time_slot + datetime.timedelta(minutes=duration_mins)
             
             start_str = current_time_slot.isoformat()
             end_str = end_time_slot.isoformat()
             
-            results["logs"].append(f"Scheduling calendar event for: {task_data.get('title', 'Untitled Task')} on {date_str}")
+            results["logs"].append(f"Scheduling calendar event for: {scored_data['title']} on {date_str}")
             
             conn = get_db_connection()
             cursor = conn.cursor()

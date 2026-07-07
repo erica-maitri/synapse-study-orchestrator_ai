@@ -63,32 +63,47 @@ flowchart TD
 
 ```text
 ├── agents/                      # LLM Orchestrator Subagents (ADK framework)
+│   ├── base.py                  # Core agent configuration (pointing to Ollama)
 │   ├── planner.py               # Root orchestrator: decomposes goals & schedules
 │   ├── task_optimizer.py        # Optimizes subtask weights and metadata
 │   ├── exam_study.py            # Generates active-recall flashcard sets
 │   └── live_scheduler.py        # Maps calendar slots and handles conflicts
-├── mcp_server/                  # FastAPI Backend API & SQLite DB Server
-│   ├── database.py              # SQLite schemas and runtime migration logic
-│   ├── auth.py                  # JWT authentication and cryptography
-│   ├── schemas.py               # Pydantic input models & validation rules
-│   ├── main.py                  # REST API routes and conflict handlers
-│   └── sandbox/                 # Sandboxed environment for safe file executions
+├── Dockerfiles/                 # Container build configurations
+│   ├── Backend.dockerfile       # Backend API docker container settings
+│   └── Frontend.dockerfile      # Frontend React build/dev settings
 ├── frontend/                    # Vite + React Neo-Brutalist UI Workspace
 │   ├── src/
-│   │   ├── components/          # GUI window frames (TaskBoard, Flashcards, Calendar)
+│   │   ├── assets/              # Static media assets and SVGs
+│   │   ├── components/          # GUI window components (TaskBoard, Flashcards, Calendar, AuditLogs)
 │   │   ├── utils/               # Fetch API bindings and audio synthesizers
+│   │   ├── App.css              # Application layout styling rules
 │   │   ├── App.jsx              # Main dashboard wrapper & streak badge handlers
-│   │   └── index.css            # Retro neo-brutalist Flat styling rules
+│   │   ├── index.css            # Retro neo-brutalist Flat styling rules
+│   │   └── main.jsx             # React framework bootstrap entry point
+│   ├── index.html               # Main HTML wrapper template
 │   ├── package.json             # Frontend dependency packages
+│   ├── postcss.config.js        # PostCSS configurations (including Tailwind)
+│   ├── tailwind.config.js       # Tailwind brutalist token mappings
 │   └── vite.config.js           # Vite server build configuration
+├── mcp_server/                  # FastAPI Backend API & SQLite DB Server
+│   ├── auth.py                  # JWT authentication and cryptography
+│   ├── database.py              # SQLite schemas and runtime migration logic
+│   ├── main.py                  # REST API routes and conflict handlers
+│   ├── schemas.py               # Pydantic input models & validation rules
+│   └── sandbox/                 # Sandboxed environment for safe file executions
 ├── skills/                      # Deterministic Python Modules
-│   ├── spaced_repetition/       # SM-2 algorithms and synapse CLI runner
-│   └── task_scoring/            # Weighted prioritization score mappings
+│   ├── spaced_repetition/       # SM-2 interval calculations and schemas
+│   ├── task_scoring/            # Weighted prioritization score mappings
+│   └── cli.py                   # Command Line runner wrapper for skill execution
 ├── tests/                       # Test Suites
 │   └── test_sm2.py              # Spaced repetition unit validation tests
+├── .env.example                 # Environment variables template
+├── add_user.py                  # Seeding utility for creating DB credentials
+├── docker-compose.yml           # Local multi-container development orchestration
+├── LICENSE                      # Project software license
+├── README.md                    # System documentation
 ├── requirements.txt             # Python backend dependencies
-├── synapse.bat / synapse        # Root execution commands for CLI testing
-└── README.md                    # System documentation
+└── synapse.bat / synapse        # Root execution commands for CLI testing
 ```
 
 ---

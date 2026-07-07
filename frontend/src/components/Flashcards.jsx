@@ -9,14 +9,14 @@ export default function Flashcards({ cards, onRefresh }) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [showAnswer, setShowAnswer] = useState(false);
   const [streak, setStreak] = useState(0);
-  
+
   // Add/Edit Modals States
   const [showAddForm, setShowAddForm] = useState(false);
   const [frontText, setFrontText] = useState("");
   const [backText, setBackText] = useState("");
   const [subjectText, setSubjectText] = useState("");
   const [imageText, setImageText] = useState("");
-  
+
   const [editingCard, setEditingCard] = useState(null);
   const [editFrontText, setEditFrontText] = useState("");
   const [editBackText, setEditBackText] = useState("");
@@ -79,7 +79,7 @@ export default function Flashcards({ cards, onRefresh }) {
 
     try {
       await api.reviewFlashcard(activeCard.id, quality);
-      
+
       // Update local streak and state
       if (quality >= 3) {
         setStreak((prev) => prev + 1);
@@ -105,7 +105,7 @@ export default function Flashcards({ cards, onRefresh }) {
 
     const subject = subjectText.trim() || "General";
     const image = imageText.trim() || null;
-    
+
     // Repetitions = 0, ease_factor = 2.5, interval = 0, next_review_date = today
     const payload = {
       front: frontText.trim(),
@@ -122,14 +122,14 @@ export default function Flashcards({ cards, onRefresh }) {
     try {
       const result = await api.createFlashcard(payload);
       console.log("[DEBUG] Flashcard created successfully. Response:", result);
-      
+
       playSound.success();
       setFrontText("");
       setBackText("");
       setSubjectText("");
       setImageText("");
       setShowAddForm(false);
-      
+
       // Refetch parent due cards count, local queue, CRUD table
       onRefresh();
       await loadLocalCards(mode);
@@ -163,7 +163,7 @@ export default function Flashcards({ cards, onRefresh }) {
       });
       playSound.success();
       setEditingCard(null);
-      
+
       onRefresh();
       await loadLocalCards(mode);
       await loadAllCardsList();
@@ -179,12 +179,31 @@ export default function Flashcards({ cards, onRefresh }) {
       try {
         await api.deleteFlashcard(id);
         playSound.success();
-        
+
         onRefresh();
         await loadLocalCards(mode);
         await loadAllCardsList();
       } catch (err) {
         console.error("[DEBUG] Failed to delete card:", err);
+        playSound.error();
+      }
+    }
+  };
+
+  const handleClearAllCards = async () => {
+    playSound.click();
+    if (allCardsList.length === 0) return;
+
+    if (confirm(`Are you sure you want to permanently delete all ${allCardsList.length} flashcards? This cannot be undone.`)) {
+      try {
+        await Promise.all(allCardsList.map((card) => api.deleteFlashcard(card.id)));
+        playSound.success();
+
+        onRefresh();
+        await loadLocalCards(mode);
+        await loadAllCardsList();
+      } catch (err) {
+        console.error("[DEBUG] Failed to clear all flashcards:", err);
         playSound.error();
       }
     }
@@ -237,28 +256,26 @@ export default function Flashcards({ cards, onRefresh }) {
               ADD CARD
             </button>
           </div>
-          
+
           {/* Segmented Toggle Tab Buttons */}
           <div className="flex border-2 border-black font-bold text-[9px] bg-white shadow-[2px_2px_0px_#000]">
             <button
               type="button"
               onClick={() => { playSound.click(); setMode("due"); }}
-              className={`px-2 py-0.5 transition-all ${
-                mode === "due" 
-                  ? "bg-black text-[#FFF5F5]" 
-                  : "bg-transparent text-black hover:bg-black hover:bg-opacity-10"
-              }`}
+              className={`px-2 py-0.5 transition-all ${mode === "due"
+                ? "bg-black text-[#FFF5F5]"
+                : "bg-transparent text-black hover:bg-black hover:bg-opacity-10"
+                }`}
             >
               DUE TODAY
             </button>
             <button
               type="button"
               onClick={() => { playSound.click(); setMode("all"); }}
-              className={`px-2 py-0.5 transition-all border-l-2 border-black ${
-                mode === "all" 
-                  ? "bg-black text-[#FFF5F5]" 
-                  : "bg-transparent text-black hover:bg-black hover:bg-opacity-10"
-              }`}
+              className={`px-2 py-0.5 transition-all border-l-2 border-black ${mode === "all"
+                ? "bg-black text-[#FFF5F5]"
+                : "bg-transparent text-black hover:bg-black hover:bg-opacity-10"
+                }`}
             >
               BROWSE ALL
             </button>
@@ -539,28 +556,26 @@ export default function Flashcards({ cards, onRefresh }) {
                 type="button"
                 disabled={currentIndex === 0 || localCards.length === 0}
                 onClick={() => { playSound.click(); setCurrentIndex((prev) => prev - 1); setShowAnswer(false); }}
-                className={`px-3 py-1.5 border-2 border-black text-xs font-bold transition-all rounded-none ${
-                  currentIndex === 0 || localCards.length === 0
-                    ? "bg-gray-300 text-gray-500 cursor-not-allowed border-gray-400 opacity-60 shadow-none"
-                    : "bg-[#00F5D4] text-black hover:bg-black hover:text-[#00F5D4] shadow-[3px_3px_0px_#000] active:translate-y-0.5 active:shadow-[0px_0px_0px_#000]"
-                }`}
+                className={`px-3 py-1.5 border-2 border-black text-xs font-bold transition-all rounded-none ${currentIndex === 0 || localCards.length === 0
+                  ? "bg-gray-300 text-gray-500 cursor-not-allowed border-gray-400 opacity-60 shadow-none"
+                  : "bg-[#00F5D4] text-black hover:bg-black hover:text-[#00F5D4] shadow-[3px_3px_0px_#000] active:translate-y-0.5 active:shadow-[0px_0px_0px_#000]"
+                  }`}
               >
                 &lt; PREV
               </button>
-              
+
               <span className="text-[10px] font-mono tracking-wider">
                 CARD {localCards.length > 0 ? currentIndex + 1 : 0} OF {localCards.length}
               </span>
-              
+
               <button
                 type="button"
                 disabled={currentIndex === localCards.length - 1 || localCards.length === 0}
                 onClick={() => { playSound.click(); setCurrentIndex((prev) => prev + 1); setShowAnswer(false); }}
-                className={`px-3 py-1.5 border-2 border-black text-xs font-bold transition-all rounded-none ${
-                  currentIndex === localCards.length - 1 || localCards.length === 0
-                    ? "bg-gray-300 text-gray-500 cursor-not-allowed border-gray-400 opacity-60 shadow-none"
-                    : "bg-[#00F5D4] text-black hover:bg-black hover:text-[#00F5D4] shadow-[3px_3px_0px_#000] active:translate-y-0.5 active:shadow-[0px_0px_0px_#000]"
-                }`}
+                className={`px-3 py-1.5 border-2 border-black text-xs font-bold transition-all rounded-none ${currentIndex === localCards.length - 1 || localCards.length === 0
+                  ? "bg-gray-300 text-gray-500 cursor-not-allowed border-gray-400 opacity-60 shadow-none"
+                  : "bg-[#00F5D4] text-black hover:bg-black hover:text-[#00F5D4] shadow-[3px_3px_0px_#000] active:translate-y-0.5 active:shadow-[0px_0px_0px_#000]"
+                  }`}
               >
                 NEXT &gt;
               </button>
@@ -575,20 +590,20 @@ export default function Flashcards({ cards, onRefresh }) {
           <Flame className="h-4 w-4 text-[#FF006E] fill-current" />
           LAST 30 DAYS REVIEW ACTIVITY (STREAK HEATMAP)
         </h3>
-        
+
         <div className="flex flex-wrap gap-1.5 justify-center py-2 bg-white p-2 border border-black border-dashed">
           {dates.map((date) => {
             const dayData = historyMap[date] || { cards_reviewed: 0, cards_correct: 0 };
             const reviewed = dayData.cards_reviewed;
             const correct = dayData.cards_correct;
-            
+
             let colorClass = "bg-[#FFF5F5] border border-black border-opacity-30";
             if (reviewed > 0 && reviewed <= 3) colorClass = "bg-[#FFDE4D] border border-black"; // Yellow
             if (reviewed > 3 && reviewed <= 7) colorClass = "bg-[#00F5D4] border border-black"; // Teal
             if (reviewed > 7) colorClass = "bg-[#FF006E] border border-black"; // Pink
-            
+
             const formattedDate = new Date(date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-            
+
             return (
               <div
                 key={date}
@@ -603,7 +618,7 @@ export default function Flashcards({ cards, onRefresh }) {
             );
           })}
         </div>
-        
+
         {/* Heatmap Legend */}
         <div className="flex justify-center items-center gap-4 text-[8px] font-bold mt-2 pt-2 border-t border-black border-opacity-10">
           <span className="flex items-center gap-1">
@@ -628,10 +643,21 @@ export default function Flashcards({ cards, onRefresh }) {
       {/* CRUD MANAGEMENT LIST/TABLE */}
       <div className="neo-border bg-[#FFF5F5] border-black p-3 mt-6">
         <div className="flex justify-between items-center border-b-2 border-black pb-1.5 mb-3">
-          <h3 className="font-extrabold text-[10px] tracking-wider">DATABASE MANAGER [FLASHCARDS.DB]</h3>
+          <div className="flex items-center gap-2">
+            <h3 className="font-extrabold text-[10px] tracking-wider">DATABASE MANAGER [FLASHCARDS.DB]</h3>
+            {allCardsList.length > 0 && (
+              <button
+                onClick={handleClearAllCards}
+                className="px-2 py-0.5 border border-black bg-white hover:bg-[#FF006E] hover:text-white text-black text-[9px] font-extrabold uppercase shadow-[1px_1px_0px_rgba(0,0,0,1)] active:translate-y-[1px] active:translate-x-[1px] active:shadow-none transition-all"
+                title="Clear all flashcards"
+              >
+                Clear All
+              </button>
+            )}
+          </div>
           <span className="text-[8px] bg-black text-[#FFF5F5] px-1.5 py-0.5 font-bold">TOTAL: {allCardsList.length} CARDS</span>
         </div>
-        
+
         <div className="overflow-y-auto max-h-[220px] border-2 border-black bg-white">
           {allCardsList.length === 0 ? (
             <div className="text-center text-black text-opacity-50 py-6 text-xs italic font-bold">

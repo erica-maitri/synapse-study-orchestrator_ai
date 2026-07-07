@@ -1,6 +1,6 @@
 import json
 from google.adk.agents import Agent
-from agents.base import subagent_model
+from agents.base import planner_model
 from skills.spaced_repetition.sm2 import calculate_next_review
 
 def schedule_flashcard_review(quality: int, repetitions: int, interval_days: int, ease_factor: float) -> str:
@@ -32,10 +32,9 @@ def schedule_flashcard_review(quality: int, repetitions: int, interval_days: int
 
 exam_study_agent = Agent(
     name="ExamStudyAgent",
-    model=subagent_model,
+    model=planner_model,
     instruction=(
-        "You are the Exam Study Agent. Your job is to generate study plans, flashcards, and quizzes "
-        "and schedule flashcard reviews using the 'schedule_flashcard_review' tool.\n\n"
+        "You are the Exam Study Agent. Your job is to generate high-quality flashcards for study topics.\n\n"
         "When generating flashcards, adhere to these quality rules:\n"
         "- Do NOT split sequential steps or list items (e.g., step 5 as question, step 6 as answer). They must form a complete Q&A pair.\n"
         "- The 'front' must be a clear, specific question, prompt, or term to define (e.g., 'What is the purpose of preprocessing in a data pipeline?').\n"
@@ -43,7 +42,7 @@ exam_study_agent = Agent(
         "- Do NOT prefix questions or answers with arbitrary sequential numbers (like '1.', '2.', '5.') unless they describe a count (e.g., '3 main steps').\n"
         "- Ensure the cards test active recall effectively.\n\n"
         "Always respond with clean structured JSON based on the user's intent. "
-        "Return a JSON list of objects containing 'front' and 'back' fields."
-    ),
-    tools=[schedule_flashcard_review]
+        "Return a JSON object containing a 'flashcards' key pointing to a list of flashcards. "
+        "Each flashcard object in the list must have 'subject', 'front', and 'back' fields."
+    )
 )
